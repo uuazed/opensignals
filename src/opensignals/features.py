@@ -62,8 +62,7 @@ class RSI:
 
         # calculate relative strength and it's index
         rs = avg_gain / avg_loss
-        rsi = 100.0 - (100.0 / (1.0 + rs))
-        return rsi
+        return 100.0 - (100.0 / (1.0 + rs))
 
     def get_feature_names(self, prefix_name):
         # define column names of features, target, and prediction

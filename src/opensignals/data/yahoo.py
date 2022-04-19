@@ -45,7 +45,7 @@ def get_ticker_data(db_dir):
         'bloomberg_ticker' : pd.Series([], dtype='str'),
         'date' : pd.Series([], dtype='datetime64[ns]')
     })
-    if len(list(db_dir.rglob('*.parquet'))) > 0:
+    if list(db_dir.rglob('*.parquet')):
         ticker_data = pd.read_parquet(db_dir)
 
     logger.info(f'Retrieving data for {ticker_data.bloomberg_ticker.unique().shape[0]} '
@@ -54,9 +54,7 @@ def get_ticker_data(db_dir):
     return ticker_data
 
 
-def get_ticker_missing(
-    ticker_data, ticker_map, last_friday = datetime.today() - relativedelta(weekday=FR(-1))
-):
+def get_ticker_missing(ticker_data, ticker_map, last_friday = datetime.now() - relativedelta(weekday=FR(-1))):
     tickers_available_data = ticker_data.groupby('bloomberg_ticker').agg({'date': [max, min]})
     tickers_available_data.columns = ['date_max', 'date_min']
 
@@ -91,12 +89,7 @@ def get_ticker_missing(
     )
 
 
-def get_data(
-    db_dir,
-    features_generators = [],
-    last_friday = datetime.today() - relativedelta(weekday=FR(-1)),
-    target='target_20d'
-):
+def get_data(db_dir, features_generators = [], last_friday = datetime.now() - relativedelta(weekday=FR(-1)), target='target_20d'):
     ticker_data = get_ticker_data(db_dir)
 
     ticker_universe = pd.read_csv(SIGNALS_UNIVERSE)
@@ -169,11 +162,15 @@ def download_tickers(tickers, start):
 
     dfs = {}
     with futures.ThreadPoolExecutor() as executor:
-        _futures = []
-        for ticker in tickers:
-            _futures.append(
-                executor.submit(download_ticker, ticker=ticker, start_epoch=start_epoch, end_epoch=end_epoch)
+        _futures = [
+            executor.submit(
+                download_ticker,
+                ticker=ticker,
+                start_epoch=start_epoch,
+                end_epoch=end_epoch,
             )
+            for ticker in tickers
+        ]
 
         for future in futures.as_completed(_futures):
             pbar.update(1)
@@ -263,7 +260,7 @@ def download_data(db_dir, recreate = False):
 
     n_ticker_missing = ticker_missing.shape[0]
     if n_ticker_missing <= 0:
-        logger.info(f'Dataset up to date')
+        logger.info('Dataset up to date')
         return
 
     logger.info(f'Downloading missing data for {n_ticker_missing} tickers')
@@ -287,14 +284,14 @@ def download_data(db_dir, recreate = False):
 
         concat_dfs.append(temp_df)
 
-    if len(concat_dfs) == 0:
-        logger.info(f'Dataset up to date')
+    if not concat_dfs:
+        logger.info('Dataset up to date')
         return
 
     df = pd.concat(concat_dfs)
     n_ticker_data = df.bloomberg_ticker.unique().shape[0]
     if n_ticker_data <= 0:
-        logger.info(f'Dataset up to date')
+        logger.info('Dataset up to date')
         return
 
     logger.info(f'Storing data for {n_ticker_data} tickers')
